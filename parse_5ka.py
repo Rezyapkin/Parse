@@ -60,7 +60,7 @@ class Parse5ka:
         self.result_path = result_path
 
     @staticmethod
-    def __get_response(url, *args, **kwargs) -> requests.Response:
+    def _get_response(url, *args, **kwargs) -> requests.Response:
         while True:
             try:
                 response = requests.get(url, *args, **kwargs)
@@ -80,7 +80,7 @@ class Parse5ka:
     def parse(self, url):
         params = self.params
         while url:
-            response = self.__get_response(url, params=params, headers=self.headers)
+            response = self._get_response(url, params=params, headers=self.headers)
             if params:
                 params = {}
             data = json.loads(response.text)
@@ -94,8 +94,43 @@ class Parse5ka:
             json.dump(data, file, ensure_ascii=False)
 
 
+class MyParse5ka(Parse5ka):
+    def __init__(self, start_url, result_path, url_categories):
+        super().__init__(start_url, result_path)
+        self.url_categories = url_categories
+
+    def get_categories(self, url):
+        response = self.__class__._get_response(url, params={}, headers=self.headers)
+        return json.loads(response.text)
+
+    def run(self):
+        params = self.params
+        for category in self.get_categories(self.url_categories):
+            self.params["categories"] = category.get("parent_group_code")
+
+            if not self.params["categories"].isdigit():
+                continue
+
+            products = list(self.parse(self.start_url))
+
+            if not len(products):
+                continue
+
+            result = {
+                "name": category.get("parent_group_name"),
+                "code": category.get("parent_group_code"),
+                "products": products,
+            }
+
+            path = self.result_path.joinpath(f"{self.params['categories']}.json")
+            self.save(result, path)
+
+        self.params = params
+
+
 if __name__ == "__main__":
     result_path = Path(__file__).parent.joinpath("products")
-    url = "https://5ka.ru/api/v2/special_offers/"
-    parser = Parse5ka(url, result_path)
+    base_url = "https://5ka.ru/api/v2/special_offers/?categories="
+    url_categories = "https://5ka.ru/api/v2/categories/"
+    parser = MyParse5ka(base_url, result_path, url_categories)
     parser.run()
