@@ -99,32 +99,26 @@ class MyParse5ka(Parse5ka):
         super().__init__(start_url, result_path)
         self.url_categories = url_categories
 
-    def get_categories(self, url):
-        response = self.__class__._get_response(url, params={}, headers=self.headers)
+    def get_categories(self):
+        response = self.__class__._get_response(self.url_categories, params={}, headers=self.headers)
         return json.loads(response.text)
 
     def run(self):
         params = self.params
-        for category in self.get_categories(self.url_categories):
+        for category in self.get_categories():
             self.params["categories"] = category.get("parent_group_code")
-
             if not self.params["categories"].isdigit():
                 continue
-
             products = list(self.parse(self.start_url))
-
             if not len(products):
                 continue
-
             result = {
                 "name": category.get("parent_group_name"),
                 "code": category.get("parent_group_code"),
                 "products": products,
             }
-
             path = self.result_path.joinpath(f"{self.params['categories']}.json")
             self.save(result, path)
-
         self.params = params
 
 
