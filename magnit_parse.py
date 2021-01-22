@@ -5,6 +5,7 @@ from urllib.parse import urljoin
 import bs4
 import pymongo
 import time
+from datetime import datetime
 
 
 class ParseError(Exception):
@@ -14,6 +15,20 @@ class ParseError(Exception):
 
 class MagnitParser:
     TRY_COUNT = 2
+    MONTHS = {
+        "января": 1,
+        "февраля": 2,
+        "марта": 3,
+        "апреля": 4,
+        "мая": 5,
+        "июня": 6,
+        "июля": 7,
+        "августа": 8,
+        "сентября": 9,
+        "октября": 10,
+        "ноября": 11,
+        "декабря": 12,
+    }
 
     def __init__(self, start_url, data_base):
         self.start_url = start_url
@@ -34,11 +49,27 @@ class MagnitParser:
 
     @staticmethod
     def __get_price(tag):
-        print(tag.find(
-                "div", attrs={"class": "card-sale__title"}
-            ).text)
         return float(tag.find("span", attrs={"class": "label__price-integer"}).text) + \
                float(tag.find("span", attrs={"class": "label__price-decimal"}).text or 0) / 100
+
+    @staticmethod
+    def __str_to_date(string):
+        date_parts = string.split()
+        if str.isdigit(date_parts[0]) and date_parts[1] in __class__.MONTHS:
+            return datetime(
+                datetime.now().year if len(date_parts) <= 2 else int(date_parts[2]), __class__.MONTHS.get(date_parts[1]), int(date_parts[0])
+            )
+
+    @staticmethod
+    def __get_date_from_to(tag):
+        periods = list(map(lambda p: p.text.split(maxsplit=1)[1], tag.find_all("p")))
+        result = {
+                "from": __class__.__str_to_date(periods[0]),
+                "to": __class__.__str_to_date(periods[1]),
+            }
+        if result["from"] > result["to"]:
+            result["from"] = datetime(result["from"].year - 1, result["from"].month, result["from"].day)
+        return result
 
     @property
     def data_template(self):
@@ -51,7 +82,7 @@ class MagnitParser:
                 "div", attrs={"class": "card-sale__title"}
             ).text,
             "old_price": lambda tag: self.__get_price(tag.find(
-                "div", attrs={"class": "label__price_new"}
+                "div", attrs={"class": "label__price_old"}
             )),
             "new_price": lambda tag: self.__get_price(tag.find(
                 "div", attrs={"class": "label__price_new"}
@@ -59,12 +90,12 @@ class MagnitParser:
             "image_url": lambda tag: urljoin(self.start_url, tag.find(
                 "img", attrs={"class": "lazy"}
             ).attrs.get("data-src")),
-            "date_from": lambda tag: tag.find(
+            "date_from": lambda tag: self.__get_date_from_to(tag.find(
                 "div", attrs={"class": "card-sale__date"}
-            ).text,
-            "date_to": lambda tag: tag.find(
+            ))["from"],
+            "date_to": lambda tag: self.__get_date_from_to(tag.find(
                 "div", attrs={"class": "card-sale__date"}
-            ).text,
+            ))["to"],
         }
 
     @staticmethod
@@ -92,6 +123,8 @@ class MagnitParser:
             try:
                 data[key] = pattern(product_tag)
             except AttributeError:
+                continue
+            except ValueError:
                 continue
         return data
 
