@@ -16,6 +16,10 @@ class Database:
             db_data = model(**data)
         return db_data
 
+    def create_comment(self, session, **data):
+        comment = self.get_or_create(session, models.Comment, unique_field="external_id", **data)
+        session.add(comment)
+
     def create_post(self, data):
         session = self.maker()
         tags = map(
@@ -25,7 +29,7 @@ class Database:
         post = self.get_or_create(session, models.Post, **data["post_data"], writer=writer)
 
         for comment in data["comments"]:
-            self.get_or_create(session, models.Comment, unique_field="external_id", **comment, post=post)
+            self.create_comment(session, **comment, post=post)
 
         post.tags.extend(tags)
 
