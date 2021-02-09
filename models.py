@@ -37,7 +37,7 @@ class Comment(Base):
     id = Column(Integer, autoincrement=True, primary_key=True)
     external_id = Column(Integer, unique=True, nullable=False)
     author = Column(String, unique=False, nullable=False)
-    text = Column(String, unique=True, nullable=False)
+    text = Column(String, unique=False, nullable=False)
     post_id = Column(Integer, ForeignKey('post.id'))
     post = relationship("Post")
 
