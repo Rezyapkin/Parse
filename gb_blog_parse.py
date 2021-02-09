@@ -10,14 +10,8 @@ from dateutil.parser import parse as date_parse
 
 from database import Database
 
-# todo обойти пагинацию блога
-# todo обойти каждую статью
-# todo Извлечь данные: Url, Заголовок, имя автора, url автора, список тегов (url, имя)
-
-
 
 # В исходной версии есть нарушение принципа DRY в коде, который ставит задачи
-
 class Task:
 
     def __init__(self):
@@ -73,8 +67,8 @@ class GbParse:
         for task in self.task.tasks:
             result = task()
             if result:
-                print(result)
-                # self.database.create_post(result)
+                # print(result)
+                self.database.create_post(result)
 
     # В тексте задания не было сказано, нужно ли читать вложенные комментарии (ответы на комменты)
     def comments_parse(self, id_post):
@@ -85,7 +79,8 @@ class GbParse:
         response = self._get_response(url = url_comments)
         data = json.loads(response.text)
         return [
-            {"author": item.get("comment").get("user").get("full_name"),
+            {"external_id": item.get("comment").get("id"),
+             "author": item.get("comment").get("user").get("full_name"),
              "text": item.get("comment").get("body"),
             } for item in data if item.get("comment")
         ]
@@ -97,16 +92,19 @@ class GbParse:
             "post_data": {
                 "url": url,
                 "title": article.find("h1", attrs={"class": "blogpost-title"}).text,
-                "immage_url": urljoin(url, article.find("img").get("src")),
+                "image_url": urljoin(url, article.find("img").get("src")),
                 "date": date_parse(article.find("time", attrs={"itemprop": "datePublished"}).get("datetime")),
             },
-            "author": {
+
+            "writer": {
                 "url": urljoin(url, author_name_tag.parent.get("href")),
                 "name": author_name_tag.text,
             },
+
             "comments": self.comments_parse(
                 article.find("comments", attrs={"commentable-type": "Post"}).get("commentable-id")
             ),
+
             "tags": [
                 {
                     "name": tag.text,

@@ -9,8 +9,9 @@ class Database:
         models.Base.metadata.create_all(bind=engine)
         self.maker = sessionmaker(bind=engine)
 
-    def get_or_create(self, session, model, **data):
-        db_data = session.query(model).filter(model.url == data["url"]).first()
+    def get_or_create(self, session, model, unique_field="url", **data):
+        db_data = session.query(model).filter(getattr(model, unique_field) == data[unique_field]).first()
+
         if not db_data:
             db_data = model(**data)
         return db_data
@@ -20,8 +21,12 @@ class Database:
         tags = map(
             lambda tag_data: self.get_or_create(session, models.Tag, **tag_data), data["tags"]
         )
-        author = self.get_or_create(session, models.Author, **data["author"])
-        post = self.get_or_create(session, models.Post, **data["post_data"], author=author)
+        writer = self.get_or_create(session, models.Writer, **data["writer"])
+        post = self.get_or_create(session, models.Post, **data["post_data"], writer=writer)
+
+        for comment in data["comments"]:
+            self.get_or_create(session, models.Comment, unique_field="external_id", **comment, post=post)
+
         post.tags.extend(tags)
 
         session.add(post)
