@@ -1,14 +1,19 @@
 import os
 import requests
 import bs4
+import json
+import time
+
 from urllib.parse import urljoin
 from dotenv import load_dotenv
+from dateutil.parser import parse as date_parse
 
 from database import Database
 
 # todo обойти пагинацию блога
 # todo обойти каждую статью
 # todo Извлечь данные: Url, Заголовок, имя автора, url автора, список тегов (url, имя)
+
 
 
 # В исходной версии есть нарушение принципа DRY в коде, который ставит задачи
@@ -25,6 +30,11 @@ class Task:
             self.done_urls.add(url)
 
 
+class ParseError(Exception):
+    def __init__(self, txt):
+        self.txt = txt
+
+
 class GbParse:
 
     def __init__(self, start_url, database):
@@ -34,8 +44,21 @@ class GbParse:
         self.task.add(self.start_url, self.parse_task(self.start_url, self.pag_parse))
         self.database = database
 
+    @staticmethod
+    def _get_response(url, *args, **kwargs) -> requests.Response:
+        while True:
+            try:
+                response = requests.get(url, *args, **kwargs)
+                if response.status_code > 399:
+                    raise ParseError(response.status_code)
+                time.sleep(0.1)
+                return response
+            except (requests.RequestException, ParseError):
+                time.sleep(0.5)
+                continue
+
     def _get_soup(self, *args, **kwargs):
-        response = requests.get(*args, **kwargs)
+        response = self._get_response(*args, **kwargs)
         soup = bs4.BeautifulSoup(response.text, "lxml")
         return soup
 
@@ -53,17 +76,37 @@ class GbParse:
                 print(result)
                 # self.database.create_post(result)
 
+    # В тексте задания не было сказано, нужно ли читать вложенные комментарии (ответы на комменты)
+    def comments_parse(self, id_post):
+        if not id_post.isdigit():
+            return []
+        url_comments = \
+            f'https://geekbrains.ru/api/v2/comments?commentable_type=Post&commentable_id={id_post}&order=desc'
+        response = self._get_response(url = url_comments)
+        data = json.loads(response.text)
+        return [
+            {"author": item.get("comment").get("user").get("full_name"),
+             "text": item.get("comment").get("body"),
+            } for item in data if item.get("comment")
+        ]
+
     def post_parse(self, url, soup: bs4.BeautifulSoup) -> dict:
         author_name_tag = soup.find("div", attrs={"itemprop": "author"})
+        article = soup.find("article")
         data = {
             "post_data": {
                 "url": url,
-                "title": soup.find("h1", attrs={"class": "blogpost-title"}).text,
+                "title": article.find("h1", attrs={"class": "blogpost-title"}).text,
+                "immage_url": urljoin(url, article.find("img").get("src")),
+                "date": date_parse(article.find("time", attrs={"itemprop": "datePublished"}).get("datetime")),
             },
             "author": {
                 "url": urljoin(url, author_name_tag.parent.get("href")),
                 "name": author_name_tag.text,
             },
+            "comments": self.comments_parse(
+                article.find("comments", attrs={"commentable-type": "Post"}).get("commentable-id")
+            ),
             "tags": [
                 {
                     "name": tag.text,
