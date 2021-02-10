@@ -63,7 +63,7 @@ class AutoyuolaSpider(scrapy.Spider):
         if re_match:
             author_url = urljoin(response.url, unquote(re_match[1]))
         else:
-            re_match = re.search(r'%22youlaId%22%2C%22([\d\w]+)%22', str(response.body))
+            re_match = re.search(r'%22youlaId%22%2C%22([\d\w]+)%22%2C%22avatar', str(response.body))
             author_url = f"https://youla.ru/user/{re_match[1]}" if re_match else None
 
         yield response.follow(
@@ -84,7 +84,7 @@ class AutoyuolaSpider(scrapy.Spider):
         if kwargs.get("author_url"):
             data["author"]["url"] = kwargs.get("author_url")
 
-        #   print(data)
+        # print(data)
         self.db_client['gb_parse_12_01_2021'][self.name].insert_one(data)
 
     @staticmethod
