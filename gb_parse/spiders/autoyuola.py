@@ -1,7 +1,7 @@
 import scrapy
 import json
 import re
-from urllib.parse import unquote
+from urllib.parse import unquote, urljoin
 from html2text import html2text
 import pymongo
 
@@ -28,11 +28,11 @@ class AutoyuolaSpider(scrapy.Spider):
         "description": lambda resp: resp.css(".advert-description p ::text").get(),
         "author": lambda resp: {
             "name": resp.css("div.advert-contacts__name ::text").get(),
-            "phone": resp.css(".advert__call a").attrib["href"].replace("tel:",""),
+            "phone": resp.css(".advert__call a").attrib["href"].replace("tel:", ""),
         },
         "images": lambda resp:
         json.loads(
-            html2text(resp.css("div.content.content_full-page script ::text").get()).replace("\n","")
+            html2text(resp.css("div.content.content_full-page script ::text").get()).replace("\n", "")
         ).get("image"),
         "properties": lambda resp: [
             (prop.css(".table__cell:first-child ::text").get(), prop.css(".table__cell:last-child ::text").get())
@@ -48,7 +48,6 @@ class AutoyuolaSpider(scrapy.Spider):
     def get_user_url(response):
         return unquote(response.css("#initial-state ::text").get())
 
-
     def parse(self, response, **kwargs):
         brands_links = response.css(self.css_query["brands"])
         yield from self.gen_task(response, brands_links, self.brand_parse)
@@ -57,9 +56,23 @@ class AutoyuolaSpider(scrapy.Spider):
         pagination_links = response.css(self.css_query["pagination"])
         yield from self.gen_task(response, pagination_links, self.brand_parse)
         ads_links = response.css(self.css_query["ads"])
-        yield from self.gen_task(response, ads_links, self.ads_parse, headers={"User-Agent": self.mobile_agent})
+        yield from self.gen_task(response, ads_links, self.ads_parse)
 
     def ads_parse(self, response):
+        re_match = re.search(r'sellerLink%22%2C%22(.+?)%22', str(response.body))
+        if re_match:
+            author_url = urljoin(response.url, unquote(re_match[1]))
+        else:
+            re_match = re.search(r'%22youlaId%22%2C%22([\d\w]+)%22', str(response.body))
+            author_url = f"https://youla.ru/user/{re_match[1]}" if re_match else None
+
+        yield response.follow(
+            response.url, callback=self.ads_parse_mobile, dont_filter=True,
+            cb_kwargs={"author_url": author_url},
+            headers={"User-Agent": self.mobile_agent}
+        )
+
+    def ads_parse_mobile(self, response, *args, **kwargs):
         data = {}
 
         for key, selector in self.data_query.items():
@@ -68,20 +81,13 @@ class AutoyuolaSpider(scrapy.Spider):
             except (ValueError, AttributeError):
                 continue
 
-        self.db_client['gb_parse_12_01_2021'][self.name].insert_one(data)
+        if kwargs.get("author_url"):
+            data["author"]["url"] = kwargs.get("author_url")
 
-    @staticmethod
-    def get_url_user(response):
-        #Истина была рядом, но дожал вопрос с url пользователя. Он разный для салонов и юзера
-        j_script = unquote(response.css("#initial-state ::text").get())
-        site_user_id = re.findall('"siteUserId":"(\d+)"',j_script)
-        if len(site_user_id):
-            resp = response.follow(
-                f"https://auto.youla.ru/api/profile/youla?userId={site_user_id[0]}",
-                headers={"User-Agent": __class__.mobile_agent}
-            )
+        #   print(data)
+        self.db_client['gb_parse_12_01_2021'][self.name].insert_one(data)
 
     @staticmethod
     def gen_task(response, link_list, callback, *args, **kwargs):
         for link in link_list:
-            yield response.follow(link.attrib["href"], callback=callback,  *args, **kwargs)
+            yield response.follow(link.attrib["href"], callback=callback, *args, **kwargs)
