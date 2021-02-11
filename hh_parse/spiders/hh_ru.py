@@ -1,4 +1,6 @@
 import scrapy
+from scrapy.http import HtmlResponse
+from hh_parse.items import HhParseItem
 
 
 class HhRuSpider(scrapy.Spider):
