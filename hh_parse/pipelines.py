@@ -1,3 +1,5 @@
+import pymongo
+
 # Define your item pipelines here
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
@@ -10,4 +12,14 @@ from itemadapter import ItemAdapter
 
 class HhParsePipeline:
     def process_item(self, item, spider):
+        return item
+
+
+class SaveToMongo:
+    def __init__(self):
+        client = pymongo.MongoClient()
+        self.db = client['gb_parse_12_01_2021']
+
+    def process_item(self, item, spider):
+        self.db[f"{spider.name}__{item.__class__.__name__}"].insert_one(item)
         return item
