@@ -31,3 +31,17 @@ class HHVacancyItem(scrapy.Item):
     description = scrapy.Field()
     skills = scrapy.Field()
     company_url = scrapy.Field()
+
+#Классы Item и их отдачу у Вас взял. Сам парсер не подглядывал
+
+class Insta(scrapy.Item):
+    _id = scrapy.Field()
+    date_parse = scrapy.Field()
+    data = scrapy.Field()
+    img = scrapy.Field()
+
+class InstaTag(Insta):
+    pass
+
+class InstaPost(Insta):
+    pass

@@ -1,7 +1,8 @@
 import json
 import scrapy
 import re
-import datetime
+from datetime import datetime
+from ..items import InstaTag, InstaPost
 from urllib.parse import unquote
 
 class InstagramSpider(scrapy.Spider):
@@ -38,6 +39,13 @@ class InstagramSpider(scrapy.Spider):
                     tag_url = f'{self.tag_path}{tag}'
                     yield response.follow(tag_url, callback=self.tag_parse)
 
+    def get_tag_data(self, response):
+        try:
+            js_data = self.js_data_extract(response)
+            return js_data['entry_data']['TagPage'][0]['graphql']['hashtag']
+        except (KeyError, AttributeError):
+            return {}
+
     def tag_parse(self, response):
         #Получим адрес JS
         js_url = response.xpath("//link[contains(@href,'/static/bundles/es6/TagPageContainer.js')]/@href").get()
@@ -53,6 +61,16 @@ class InstagramSpider(scrapy.Spider):
             )
         else:
             yield response.follow(self.get_api_url(data.get('name'), js_url), callback=self.tag_api_parse)
+
+        #Отдачу данных у Вас списал, остальное сам
+        yield InstaTag(
+            date_parse = datetime.utcnow(),
+            data = {
+                "id": data["id"],
+                "name": data["name"],
+                "profile_pic_url": data["profile_pic_url"],
+            },
+        )
 
     #JS-скрипт из которого возьмем заветный hash-query
     def js_parse(self, response, *args, **kwargs):
@@ -78,6 +96,8 @@ class InstagramSpider(scrapy.Spider):
                 callback=self.tag_api_parse,
             )
 
+        yield from self.get_post_item(data["edge_hashtag_to_media"]["edges"])
+
     @staticmethod
     def get_query_variables(tag_name, after=""):
         return json.dumps({
@@ -86,14 +106,12 @@ class InstagramSpider(scrapy.Spider):
             "after": after
         })
 
-    def get_tag_data(self, response):
-        try:
-            js_data = self.js_data_extract(response)
-            return js_data['entry_data']['TagPage'][0]['graphql']['hashtag']
-        except (KeyError, AttributeError):
-            return {}
-
     @staticmethod
     def js_data_extract(response) -> dict:
         script = response.xpath("/html/body/script[contains(text(), 'window._sharedData = ')]/text()").get()
         return json.loads(script.replace('window._sharedData = ', '')[:-1])
+
+    @staticmethod
+    def get_post_item(edges):
+        for node in edges:
+            yield InstaPost(date_parse = datetime.utcnow(), data = node["node"])
