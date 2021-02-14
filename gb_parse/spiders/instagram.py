@@ -1,7 +1,7 @@
 import datetime as dt
 import json
 import scrapy
-from ..items import InstaTag, InstaPost, InstaUser, InstaFollow
+from ..items import InstaTag, InstaPost, InstaUser, InstaFollow, InstaFollower
 
 # Урок 6 я делал сам. Сделал по другому получение query_hash из js-файла. Скачал стартовый git 7ого урока. А тут все
 # решено. С Вашего позволения возьму за основу Ваш код и приступлю к курсовой.
@@ -20,10 +20,13 @@ class InstagramSpider(scrapy.Spider):
         "followers": "c76146de99bb02f6415203be841dd25a",
     }
 
-    def __init__(self, login, password, *args, **kwargs):
-        self.users = [
-            "rezanna87",
-        ]
+    type_requests = {
+        "follow": "edge_follow",
+        "followers": "edge_followed_by",
+    }
+
+    def __init__(self, login, password, users, *args, **kwargs):
+        self.users = users
         self.login = login
         self.enc_passwd = password
         super().__init__(*args, **kwargs)
@@ -47,49 +50,62 @@ class InstagramSpider(scrapy.Spider):
                     yield response.follow(f"/{user}/", callback=self.user_page_parse)
 
     def user_page_parse(self, response):
-        user_data = self.js_data_extract(response)["entry_data"]["ProfilePage"][0]["graphql"][
-            "user"
-        ]
+        user_data = self.js_data_extract(response)["entry_data"]["ProfilePage"][0]["graphql"]["user"]
         yield from self.get_api_follow_request(response, user_data)
+        yield from self.get_api_followers_request(response, user_data)
 
-    def get_api_follow_request(self, response, user_data, variables=None):
+    def get_api_request(self, response, user_data, variables=None, type_request="follow"):
         if not variables:
             variables = {
                 "id": user_data["id"],
                 "first": 100,
             }
-        url = f'{self.api_url}?query_hash={self.query_hash["follow"]}&variables={json.dumps(variables)}'
+        url = f'{self.api_url}?query_hash={self.query_hash[type_request]}&variables={json.dumps(variables)}'
         yield response.follow(
-            url, callback=self.get_api_follow, cb_kwargs={"user_data": user_data}
+            url, callback=self.get_api_follow, cb_kwargs={"user_data": user_data, "type_request": type_request}
         )
 
-    def get_api_follow(self, response, user_data):
+    def get_api_follow_request(self, response, user_data, variables=None):
+        yield from self.get_api_request(response, user_data, variables, type_request="follow")
+
+    def get_api_followers_request(self, response, user_data, variables=None):
+        yield from self.get_api_request(response, user_data, variables, type_request="followers")
+
+    def get_api_follow(self, response, user_data, type_request):
         data = response.json()
 
         if not (data.get("data") and data["data"].get("user")):
             return
 
+        edges_data = data["data"]["user"][self.type_requests[type_request]]
+
         yield from self.get_follow_item(
-            user_data, data["data"]["user"]["edge_follow"]["edges"]
+            user_data, edges_data["edges"], type_request
         )
 
-        if data["data"]["user"]["edge_follow"]["page_info"]["has_next_page"]:
+        if edges_data["page_info"]["has_next_page"]:
             variables = {
                 "id": user_data["id"],
                 "first": 100,
-                "after": data["data"]["user"]["edge_follow"]["page_info"]["end_cursor"],
+                "after": edges_data["page_info"]["end_cursor"],
             }
-            yield from self.get_api_follow_request(response, user_data, variables)
+            yield from self.get_api_request(response, user_data, variables, type_request)
 
-    def get_follow_item(self, user_data, follow_users_data):
-        for user in follow_users_data:
-            yield InstaFollow(
+    def get_follow_item(self, user_data, users_data, type_request):
+        for user in users_data:
+            yield self.get_item_class(type_request)(
                 user_id=user_data["id"],
                 user_name=user_data["username"],
                 follow_id=user["node"]["id"],
                 follow_name=user["node"]["username"],
             )
-            yield InstaUser(date_parse=dt.datetime.utcnow(), data=user["node"])
+
+    @staticmethod
+    def get_item_class(type_request):
+        if type_request == "follow":
+            return InstaFollow
+        elif type_request == "followers":
+            return InstaFollower
 
     @staticmethod
     def js_data_extract(response):

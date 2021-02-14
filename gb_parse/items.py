@@ -59,3 +59,7 @@ class InstaFollow(scrapy.Item):
     user_id = scrapy.Field()
     follow_name = scrapy.Field()
     follow_id = scrapy.Field()
+
+
+class InstaFollower(InstaFollow):
+    pass

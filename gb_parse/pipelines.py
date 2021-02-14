@@ -10,7 +10,7 @@ from scrapy import Request
 from scrapy.pipelines.images import ImagesPipeline
 import pymongo
 
-from gb_parse.items import InstaPost
+from gb_parse.items import InstaPost, InstaFollower, InstaFollow
 
 
 class GbParsePipeline:
@@ -24,7 +24,9 @@ class SaveToMongo:
         self.db = client["gb_parse_12_01_2021"]
 
     def process_item(self, item, spider):
-        self.db[spider.name].insert_one(item)
+        if not isinstance(item, (InstaFollow, InstaFollower)):
+            self.db[spider.name].insert_one(item)
+
         return item
 
 
@@ -34,7 +36,7 @@ class GbImagePipeline(ImagesPipeline):
             pass
         to_download = []
         to_download.extend(item.get("images", []))
-        if item["data"].get("display_url"):
+        if item.get("data") and item["data"].get("display_url"):
             to_download.append(item["data"]["display_url"])
         for img_url in to_download:
             yield Request(img_url)
