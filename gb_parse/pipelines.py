@@ -9,23 +9,31 @@ from itemadapter import ItemAdapter
 from scrapy import Request
 from scrapy.pipelines.images import ImagesPipeline
 import pymongo
+import os
 
-from gb_parse.items import InstaPost, InstaFollower, InstaFollow
+from gb_parse.items import InstaPost, InstaFollower, InstaFollowed
 
 
 class GbParsePipeline:
     def process_item(self, item, spider):
         return item
 
-
-class SaveToMongo:
+class SaveToDb:
     def __init__(self):
-        client = pymongo.MongoClient()
-        self.db = client["gb_parse_12_01_2021"]
+        pass
 
     def process_item(self, item, spider):
-        if not isinstance(item, (InstaFollow, InstaFollower)):
-            self.db[spider.name].insert_one(item)
+
+        if isinstance(item, (InstaFollowed, InstaFollower)):
+
+            data = {
+                "follower_id": item["user_id"] if type(item) == InstaFollowed else item["follow_id"],
+                "follower_name": item["user_name"] if type(item) == InstaFollowed else item["follow_name"],
+                "followed_id": item["follow_id"] if type(item) ==  InstaFollowed else item["user_id"],
+                "followed_name": item["follow_name"] if type(item) == InstaFollowed else item["user_name"],
+            }
+
+            spider.db.create_follow_link(data)
 
         return item
 

@@ -52,7 +52,7 @@ class InstaUser(Insta):
     pass
 
 
-class InstaFollow(scrapy.Item):
+class InstaFollowed(scrapy.Item):
     _id = scrapy.Field()
     date_parse = scrapy.Field()
     user_name = scrapy.Field()
@@ -61,5 +61,5 @@ class InstaFollow(scrapy.Item):
     follow_id = scrapy.Field()
 
 
-class InstaFollower(InstaFollow):
+class InstaFollower(InstaFollowed):
     pass

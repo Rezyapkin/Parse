@@ -18,21 +18,25 @@ LOG_LEVEL = "DEBUG"
 IMAGES_STORE = 'images'
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
-USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.16; rv:84.0) Gecko/20100101 Firefox/84.0"
+USER_AGENT = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/" \
+             "88.0.4324.41 Mobile Safari/537.36"
+
+SCHEDULER_DISK_QUEUE = 'scrapy.squeues.PickleFifoDiskQueue'
+SCHEDULER_MEMORY_QUEUE = 'scrapy.squeues.FifoMemoryQueue'
 
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-CONCURRENT_REQUESTS = 32
+CONCURRENT_REQUESTS = 1
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-DOWNLOAD_DELAY = 0.05
+DOWNLOAD_DELAY = 4
 # The download delay setting will honor only one of:
-CONCURRENT_REQUESTS_PER_DOMAIN = 16
-CONCURRENT_REQUESTS_PER_IP = 16
+CONCURRENT_REQUESTS_PER_DOMAIN = 1
+CONCURRENT_REQUESTS_PER_IP = 1
 
 # Disable cookies (enabled by default)
 COOKIES_ENABLED = True
@@ -48,17 +52,19 @@ DEFAULT_REQUEST_HEADERS = {
 
 # Enable or disable spider middlewares
 # See https://docs.scrapy.org/en/latest/topics/spider-middleware.html
+
 # SPIDER_MIDDLEWARES = {
 #    'gb_parse.middlewares.GbParseSpiderMiddleware': 543,
 # }
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-# DOWNLOADER_MIDDLEWARES = {
-#     # 'gb_parse.middlewares.GbParseDownloaderMiddleware': 543,
-#     "rotating_proxies.middlewares.RotatingProxyMiddleware": 610,
-#     "rotating_proxies.middlewares.BanDetectionMiddleware": 620,
-# }
+
+RETRY_HTTP_CODES = [429]
+
+DOWNLOADER_MIDDLEWARES = {
+    'gb_parse.middlewares.GbParseDownloaderMiddleware': 543
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -70,7 +76,7 @@ DEFAULT_REQUEST_HEADERS = {
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
     "gb_parse.pipelines.GbParsePipeline": 200,
-    "gb_parse.pipelines.SaveToMongo": 400,
+    "gb_parse.pipelines.SaveToDb": 400,
     "gb_parse.pipelines.GbImagePipeline": 300,
 }
 
