@@ -11,7 +11,7 @@ from scrapy.pipelines.images import ImagesPipeline
 import pymongo
 import os
 
-from gb_parse.items import InstaPost, InstaFollower, InstaFollowed
+from gb_parse.items import InstaPost, InstaFollower, InstaFollowed, InstaUser, InstaStartUser
 
 
 class GbParsePipeline:
@@ -24,7 +24,10 @@ class SaveToDb:
 
     def process_item(self, item, spider):
 
-        if isinstance(item, (InstaFollowed, InstaFollower)):
+        if type(item) == InstaStartUser:
+            spider.db.create_start_node_in_friendship(item)
+
+        elif isinstance(item, (InstaFollowed, InstaFollower)):
 
             data = {
                 "follower_id": item["user_id"] if type(item) == InstaFollowed else item["follow_id"],

@@ -49,6 +49,11 @@ class InstaPost(Insta):
 
 
 class InstaUser(Insta):
+    id = scrapy.Field()
+    name = scrapy.Field()
+
+
+class InstaStartUser(InstaUser):
     pass
 
 

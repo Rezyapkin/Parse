@@ -8,11 +8,13 @@ from gb_parse.database import Database
 if __name__ == "__main__":
     load_dotenv('.env')
     users = [
-            "oskina2728", "dolgam_net"
+            "dolgam_net", "svmokka"
         ]
     db = Database(os.getenv("SQL_DB"))
 
+    print("Алгоритм не сложно доработать для поиска рукопожатий для более чем двух вводных пользователей")
     chunk_str = db.find_min_path(users[0], users[1])
+    # Не будем запускать паука, если цепочка лежит в базе
     if chunk_str:
         print(chunk_str)
         exit()
@@ -25,6 +27,11 @@ if __name__ == "__main__":
         login=os.getenv('INSTA_USERNAME'),
         password=os.getenv('ENC_PASSWORD'),
         users=users,
-        db = db
+        db=db,
+        max_depth=3
     )
     crawler_process.start()
+
+    #Вывод результата работы паука
+    chunk_str = db.find_min_path(users[0], users[1])
+    print("Цепочка рукопожатий не найдена попробуйте увеличить глубину поиска" if chunk_str is None else chunk_str)

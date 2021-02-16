@@ -5,7 +5,7 @@ import json
 
 import scrapy
 import os
-from ..items import InstaFollowed, InstaFollower
+from ..items import InstaFollowed, InstaFollower, InstaStartUser
 from ..database import Database
 
 
@@ -39,11 +39,10 @@ class InstagramSpider(scrapy.Spider):
     def check_target(self):
         chunk_str = self.db.find_min_path(self.users[0], self.users[1])
         if chunk_str:
-            print(chunk_str)
             self.crawler.stop()
-            return True
 
-        return False
+        return False if chunk_str is None else True
+
 
     def parse(self, response, **kwargs):
         try:
@@ -72,10 +71,15 @@ class InstagramSpider(scrapy.Spider):
 
     def user_page_parse(self, response, handshakes):
         user_data = self.js_data_extract(response)["entry_data"]["ProfilePage"][0]["graphql"]["user"]
+
         yield from self.parse_friends(response, user_data, handshakes)
 
     def parse_friends(self, response, user_data, handshakes):
         new_handshakes = self.get_new_handshake(handshakes, user_data)
+        #Отправим корневые узлы
+        if len(new_handshakes)==1:
+            yield InstaStartUser(id=new_handshakes[0]["id"], name=new_handshakes[0]["name"])
+
         yield from self.get_api_request(response, user_data, new_handshakes, "followers")
 
     def get_new_handshake(self, handshakes, user_data):
@@ -84,6 +88,7 @@ class InstagramSpider(scrapy.Spider):
             "id": user_data["id"],
             "name": user_data["username"],
         })
+
         return new_handshakes
 
     def get_api_request(self, response, user_data, handshakes, type_request, variables=None):

@@ -3,6 +3,7 @@ from sqlalchemy.orm import sessionmaker, aliased
 from .models import Base, User, FriendShip
 
 
+# Получился антипаттерн "Супер-класс", но из-за болезни отстаю и не успеваю отрефакторить(((
 class Database:
     def __init__(self, db_url):
         engine = create_engine(db_url)
@@ -50,23 +51,20 @@ class Database:
         )
 
     @db_session
+    def create_start_node_in_friendship(self, data, session=None):
+        user = self.get_or_create(session, User, id=data["id"], name=data["name"])
+        session.add(user)
+        friendship = self.get_or_create_realationship(session, user.id, user.id)
+        session.add(friendship)
+
+    @db_session
     def get_users_next_depth(self, handshakes=[], session=None):
         # Найдем последнего пользователя в текущей ветке рукопожатий
         prev_user_id = handshakes[-1]["id"]
         user_last = session.query(User).filter(User.id == handshakes[-1]["id"]).first()
         friends_last = self.get_friends(user_last, session)
-
-        #Создадим ссылки на сами себя
-        if len(handshakes) <= 1:
-            first_rel = self.get_or_create_realationship(session, user_last.id, user_last.id)
-            session.add(first_rel)
-            user_first = user_last
-        else:
-            # Пользователь от которого ищем
-            user_first = session.query(User).filter(User.id == handshakes[0]["id"]).first()
-
+        user_first = session.query(User).filter(User.id == handshakes[0]["id"]).first()
         depth = len(handshakes)
-
         list_next_user = []
 
         for friend in friends_last:
@@ -91,6 +89,10 @@ class Database:
     def find_min_path(self, user1_name, user2_name, session=None):
         user1 = session.query(User).filter(User.name == user1_name).first()
         user2 = session.query(User).filter(User.name == user2_name).first()
+
+        if user1 is None or user2 is None:
+            return None
+
         relation1 = aliased(FriendShip)
         relation2 = aliased(FriendShip)
         q_join = session.query(relation1, relation2).join(relation2, relation1.end_user_id == relation2.end_user_id)
